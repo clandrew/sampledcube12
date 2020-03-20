@@ -66,3 +66,8 @@ void SpinningCubeMain::OnDeviceRemoved()
 	// and its resources which are no longer valid.
 	m_sceneRenderer = nullptr;
 }
+
+void SpinningCubeMain::OnKeyUp(WPARAM wparam)
+{
+	m_sceneRenderer->OnKeyUp(wparam);
+}

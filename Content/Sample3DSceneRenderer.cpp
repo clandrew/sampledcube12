@@ -18,7 +18,8 @@ Sample3DSceneRenderer::Sample3DSceneRenderer(const std::shared_ptr<DX::DeviceRes
 	m_angle(0),
 	m_tracking(false),
 	m_mappedConstantBuffer(nullptr),
-	m_deviceResources(deviceResources)
+	m_deviceResources(deviceResources),
+	m_shouldRotate(false)
 {
 	ZeroMemory(&m_constantBufferData, sizeof(m_constantBufferData));
 
@@ -386,7 +387,10 @@ void Sample3DSceneRenderer::Update(DX::StepTimer const& timer)
 		if (!m_tracking)
 		{
 			// Rotate the cube a small amount.
-			m_angle += static_cast<float>(timer.GetElapsedSeconds()) * m_radiansPerSecond;
+			if (m_shouldRotate)
+			{
+				m_angle += static_cast<float>(timer.GetElapsedSeconds())* m_radiansPerSecond;
+			}
 
 			Rotate(m_angle);
 		}
@@ -569,4 +573,13 @@ void Sample3DSceneRenderer::LoadTextureFromPngFile(std::vector<std::wstring> con
 	CD3DX12_RESOURCE_BARRIER resourceBarrier =
 		CD3DX12_RESOURCE_BARRIER::Transition(m_texture.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	m_commandList->ResourceBarrier(1, &resourceBarrier);
+}
+
+void Sample3DSceneRenderer::OnKeyUp(WPARAM wParam)
+{
+	if (wParam == 32)
+	{
+		// Toggle rotation
+		m_shouldRotate = !m_shouldRotate;
+	}
 }

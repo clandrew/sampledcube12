@@ -18,6 +18,7 @@ namespace SpinningCube
 		void CreateWindowSizeDependentResources();
 		void Update(DX::StepTimer const& timer);
 		bool Render();
+		void OnKeyUp(WPARAM wParam);
 
 	private:
 		void Rotate(float radians);
@@ -55,7 +56,6 @@ namespace SpinningCube
 		ComPtr<ID3D12Resource>				m_texture;
 	    std::vector<ComPtr<ID3D12Resource>> m_uploads;
 		UINT								m_indexCount;
-
 		ComPtr<IWICImagingFactory>          m_wicImagingFactory;
 
 		// Variables used with the rendering loop.
@@ -63,6 +63,7 @@ namespace SpinningCube
 		float	m_radiansPerSecond;
 		float	m_angle;
 		bool	m_tracking;
+		bool    m_shouldRotate;
 	};
 }
 

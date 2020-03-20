@@ -193,6 +193,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 		}
 		break;
+
+    case WM_KEYUP:
+        {
+            g_spinningCubeMain.OnKeyUp(wParam);
+        }
+        break;
+
     case WM_DESTROY:
 		g_done = true;
         PostQuitMessage(0);

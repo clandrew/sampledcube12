@@ -18,6 +18,8 @@ namespace SpinningCube
 		void OnWindowSizeChanged();
 		void OnDeviceRemoved();
 
+		void OnKeyUp(WPARAM wparam);
+
 	private:
 		// TODO: Replace with your own content renderers.
 		std::unique_ptr<Sample3DSceneRenderer> m_sceneRenderer;
