@@ -2,4 +2,4 @@
 
 A quick, simplistic sample showing a spinning textured cube.
 
-![Example image](https://raw.githubusercontent.com/clandrew/spinningcube12/master/Demo.gif "Example image.")
+![Example image](https://raw.githubusercontent.com/clandrew/sampledcube12/master/Demo.gif "Example image.")
