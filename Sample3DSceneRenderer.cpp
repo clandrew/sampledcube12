@@ -1,7 +1,7 @@
 ﻿#include "pch.h"
 #include "Sample3DSceneRenderer.h"
 
-#include "..\Common\DirectXHelper.h"
+#include "Common\DirectXHelper.h"
 
 #include "SampleVertexShader.h"
 #include "SamplePixelShader.h"
@@ -19,7 +19,8 @@ Sample3DSceneRenderer::Sample3DSceneRenderer(const std::shared_ptr<DX::DeviceRes
 	m_tracking(false),
 	m_mappedConstantBuffer(nullptr),
 	m_deviceResources(deviceResources),
-	m_shouldRotate(false)
+	m_shouldRotate(false),
+	m_supportsSamplerFeedback(false)
 {
 	ZeroMemory(&m_constantBufferData, sizeof(m_constantBufferData));
 
@@ -45,6 +46,12 @@ Sample3DSceneRenderer::~Sample3DSceneRenderer()
 void Sample3DSceneRenderer::CreateDeviceDependentResources()
 {
 	auto d3dDevice = m_deviceResources->GetD3DDevice();
+
+	D3D12_FEATURE_DATA_D3D12_OPTIONS7 options7{};
+	if (SUCCEEDED(d3dDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS7, &options7, sizeof(options7))))
+	{
+		m_supportsSamplerFeedback = options7.SamplerFeedbackTier > D3D12_SAMPLER_FEEDBACK_TIER_NOT_SUPPORTED;
+	}
 	
 	// Create a root signature with a single constant buffer slot.
 	{
@@ -336,6 +343,37 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 
 		// Wait for the command list to finish executing; the vertex/index buffers need to be uploaded to the GPU before the upload resources go out of scope.
 		m_deviceResources->WaitForGpu();
+
+		// Create feedback map
+		if (m_supportsSamplerFeedback)
+		{
+			D3D12_RESOURCE_DESC pairedTextureDesc = m_texture->GetDesc();
+
+			CD3DX12_RESOURCE_DESC1 feedbackTextureDesc = CD3DX12_RESOURCE_DESC1::Tex2D(
+				DXGI_FORMAT_SAMPLER_FEEDBACK_MIN_MIP_OPAQUE,
+				pairedTextureDesc.Width,
+				pairedTextureDesc.Height,
+				pairedTextureDesc.DepthOrArraySize,
+				pairedTextureDesc.MipLevels,
+				1, // sample count
+				0, // sample quality
+				D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+				D3D12_TEXTURE_LAYOUT_UNKNOWN,
+				65536,
+				4, 4, 1);
+
+			DX::ThrowIfFailed(d3dDevice->CreateCommittedResource2(
+				&defaultHeapProperties,
+				D3D12_HEAP_FLAG_NONE,
+				&feedbackTextureDesc,
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+				nullptr,
+				nullptr,
+				IID_PPV_ARGS(&m_feedbackTexture)));
+
+			d3dDevice->CreateSamplerFeedbackUnorderedAccessView(m_texture, m_feedbackTexture, m_feedbackDescriptor_cpuVisible_cpu);
+			//m_spDevice->CreateSamplerFeedbackUnorderedAccessView(m_pairedTexture, m_feedbackTexture, m_feedbackDescriptor_shaderVisible_cpu);
+		}
 	};
 
 	m_loadingComplete = true;

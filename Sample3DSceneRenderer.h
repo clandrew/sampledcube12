@@ -1,8 +1,8 @@
 ﻿#pragma once
 
-#include "..\Common\DeviceResources.h"
+#include "Common\DeviceResources.h"
 #include "ShaderStructures.h"
-#include "..\Common\StepTimer.h"
+#include "Common\StepTimer.h"
 
 using namespace Microsoft::WRL;
 
@@ -55,8 +55,10 @@ namespace SpinningCube
 		D3D12_INDEX_BUFFER_VIEW				m_indexBufferView;
 		ComPtr<ID3D12Resource>				m_texture;
 	    std::vector<ComPtr<ID3D12Resource>> m_uploads;
+		ComPtr<ID3D12Resource>				m_feedbackTexture;
 		UINT								m_indexCount;
 		ComPtr<IWICImagingFactory>          m_wicImagingFactory;
+		bool								m_supportsSamplerFeedback;
 
 		// Variables used with the rendering loop.
 		bool	m_loadingComplete;

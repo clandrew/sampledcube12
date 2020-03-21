@@ -1348,6 +1348,147 @@ inline bool operator!=( const D3D12_RESOURCE_DESC& l, const D3D12_RESOURCE_DESC&
 { return !( l == r ); }
 
 //------------------------------------------------------------------------------------------------
+
+struct CD3DX12_RESOURCE_DESC1 : public D3D12_RESOURCE_DESC1
+{
+    CD3DX12_RESOURCE_DESC1() = default;
+    explicit CD3DX12_RESOURCE_DESC1(const D3D12_RESOURCE_DESC1& o) :
+        D3D12_RESOURCE_DESC1(o)
+    {}
+    CD3DX12_RESOURCE_DESC1(
+        D3D12_RESOURCE_DIMENSION dimension,
+        UINT64 alignment,
+        UINT64 width,
+        UINT height,
+        UINT16 depthOrArraySize,
+        UINT16 mipLevels,
+        DXGI_FORMAT format,
+        UINT sampleCount,
+        UINT sampleQuality,
+        D3D12_TEXTURE_LAYOUT layout,
+        D3D12_RESOURCE_FLAGS flags,
+        UINT samplerFeedbackMipRegionWidth = 0,
+        UINT samplerFeedbackMipRegionHeight = 0,
+        UINT samplerFeedbackMipRegionDepth = 0)
+    {
+        Dimension = dimension;
+        Alignment = alignment;
+        Width = width;
+        Height = height;
+        DepthOrArraySize = depthOrArraySize;
+        MipLevels = mipLevels;
+        Format = format;
+        SampleDesc.Count = sampleCount;
+        SampleDesc.Quality = sampleQuality;
+        Layout = layout;
+        Flags = flags;
+        SamplerFeedbackMipRegion.Width = samplerFeedbackMipRegionWidth;
+        SamplerFeedbackMipRegion.Height = samplerFeedbackMipRegionHeight;
+        SamplerFeedbackMipRegion.Depth = samplerFeedbackMipRegionDepth;
+    }
+    static inline CD3DX12_RESOURCE_DESC1 Buffer(
+        const D3D12_RESOURCE_ALLOCATION_INFO& resAllocInfo,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
+    {
+        return CD3DX12_RESOURCE_DESC1(D3D12_RESOURCE_DIMENSION_BUFFER, resAllocInfo.Alignment, resAllocInfo.SizeInBytes,
+            1, 1, 1, DXGI_FORMAT_UNKNOWN, 1, 0, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, flags, 0, 0, 0);
+    }
+    static inline CD3DX12_RESOURCE_DESC1 Buffer(
+        UINT64 width,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+        UINT64 alignment = 0)
+    {
+        return CD3DX12_RESOURCE_DESC1(D3D12_RESOURCE_DIMENSION_BUFFER, alignment, width, 1, 1, 1,
+            DXGI_FORMAT_UNKNOWN, 1, 0, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, flags, 0, 0, 0);
+    }
+    static inline CD3DX12_RESOURCE_DESC1 Tex1D(
+        DXGI_FORMAT format,
+        UINT64 width,
+        UINT16 arraySize = 1,
+        UINT16 mipLevels = 0,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+        D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        UINT64 alignment = 0)
+    {
+        return CD3DX12_RESOURCE_DESC1(D3D12_RESOURCE_DIMENSION_TEXTURE1D, alignment, width, 1, arraySize,
+            mipLevels, format, 1, 0, layout, flags, 0, 0, 0);
+    }
+    static inline CD3DX12_RESOURCE_DESC1 Tex2D(
+        DXGI_FORMAT format,
+        UINT64 width,
+        UINT height,
+        UINT16 arraySize = 1,
+        UINT16 mipLevels = 0,
+        UINT sampleCount = 1,
+        UINT sampleQuality = 0,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+        D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        UINT64 alignment = 0,
+        UINT samplerFeedbackMipRegionWidth = 0,
+        UINT samplerFeedbackMipRegionHeight = 0,
+        UINT samplerFeedbackMipRegionDepth = 0)
+    {
+        return CD3DX12_RESOURCE_DESC1(D3D12_RESOURCE_DIMENSION_TEXTURE2D, alignment, width, height, arraySize,
+            mipLevels, format, sampleCount, sampleQuality, layout, flags, samplerFeedbackMipRegionWidth,
+            samplerFeedbackMipRegionHeight, samplerFeedbackMipRegionDepth);
+    }
+    static inline CD3DX12_RESOURCE_DESC1 Tex3D(
+        DXGI_FORMAT format,
+        UINT64 width,
+        UINT height,
+        UINT16 depth,
+        UINT16 mipLevels = 0,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+        D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        UINT64 alignment = 0)
+    {
+        return CD3DX12_RESOURCE_DESC1(D3D12_RESOURCE_DIMENSION_TEXTURE3D, alignment, width, height, depth,
+            mipLevels, format, 1, 0, layout, flags, 0, 0, 0);
+    }
+    inline UINT16 Depth() const
+    {
+        return (Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D ? DepthOrArraySize : 1);
+    }
+    inline UINT16 ArraySize() const
+    {
+        return (Dimension != D3D12_RESOURCE_DIMENSION_TEXTURE3D ? DepthOrArraySize : 1);
+    }
+    inline UINT8 PlaneCount(_In_ ID3D12Device* pDevice) const
+    {
+        return D3D12GetFormatPlaneCount(pDevice, Format);
+    }
+    inline UINT Subresources(_In_ ID3D12Device* pDevice) const
+    {
+        return MipLevels * ArraySize() * PlaneCount(pDevice);
+    }
+    inline UINT CalcSubresource(UINT MipSlice, UINT ArraySlice, UINT PlaneSlice)
+    {
+        return D3D12CalcSubresource(MipSlice, ArraySlice, PlaneSlice, MipLevels, ArraySize());
+    }
+};
+inline bool operator==(const D3D12_RESOURCE_DESC1& l, const D3D12_RESOURCE_DESC1& r)
+{
+    return l.Dimension == r.Dimension &&
+        l.Alignment == r.Alignment &&
+        l.Width == r.Width &&
+        l.Height == r.Height &&
+        l.DepthOrArraySize == r.DepthOrArraySize &&
+        l.MipLevels == r.MipLevels &&
+        l.Format == r.Format &&
+        l.SampleDesc.Count == r.SampleDesc.Count &&
+        l.SampleDesc.Quality == r.SampleDesc.Quality &&
+        l.Layout == r.Layout &&
+        l.Flags == r.Flags &&
+        l.SamplerFeedbackMipRegion.Width == r.SamplerFeedbackMipRegion.Width &&
+        l.SamplerFeedbackMipRegion.Height == r.SamplerFeedbackMipRegion.Height &&
+        l.SamplerFeedbackMipRegion.Depth == r.SamplerFeedbackMipRegion.Depth;
+}
+inline bool operator!=(const D3D12_RESOURCE_DESC1& l, const D3D12_RESOURCE_DESC1& r)
+{
+    return !(l == r);
+}
+
+//------------------------------------------------------------------------------------------------
 // Row-by-row memcpy
 inline void MemcpySubresource(
     _In_ const D3D12_MEMCPY_DEST* pDest,
