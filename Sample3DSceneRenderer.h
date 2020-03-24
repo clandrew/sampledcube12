@@ -40,22 +40,23 @@ namespace SpinningCube
 		std::shared_ptr<DX::DeviceResources> m_deviceResources;
 
 		// Direct3D resources for cube geometry.
-		ComPtr<ID3D12GraphicsCommandList>	m_commandList;
+		ComPtr<ID3D12GraphicsCommandList1>	m_commandList;
 		ComPtr<ID3D12RootSignature>			m_rootSignature;
 		ComPtr<ID3D12PipelineState>			m_pipelineState;
-		ComPtr<ID3D12DescriptorHeap>		m_cbv_srv_Heap;
+		ComPtr<ID3D12DescriptorHeap>		m_cbvSrvUavHeap;
 		ComPtr<ID3D12Resource>				m_vertexBuffer;
 		ComPtr<ID3D12Resource>				m_indexBuffer;
 		ComPtr<ID3D12Resource>				m_constantBuffer;
 		ModelViewProjectionConstantBuffer	m_constantBufferData;
 		UINT8*								m_mappedConstantBuffer;
-		UINT								m_cbvDescriptorSize;
+		UINT								m_cbvSrvUavDescriptorSize;
 		D3D12_RECT							m_scissorRect;
 		D3D12_VERTEX_BUFFER_VIEW			m_vertexBufferView;
 		D3D12_INDEX_BUFFER_VIEW				m_indexBufferView;
 		ComPtr<ID3D12Resource>				m_texture;
 	    std::vector<ComPtr<ID3D12Resource>> m_uploads;
 		ComPtr<ID3D12Resource>				m_feedbackTexture;
+		ComPtr<ID3D12Resource>				m_decodeBuffer;
 		UINT								m_indexCount;
 		ComPtr<IWICImagingFactory>          m_wicImagingFactory;
 		bool								m_supportsSamplerFeedback;

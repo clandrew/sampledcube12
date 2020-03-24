@@ -58,8 +58,8 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 		CD3DX12_DESCRIPTOR_RANGE ranges[2];
 		CD3DX12_ROOT_PARAMETER parameter;
 
-		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0);
-		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, DX::c_frameCount);
+		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0u, 0);
+		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, 1);
 
 		parameter.InitAsDescriptorTable(_countof(ranges), ranges, D3D12_SHADER_VISIBILITY_ALL);
 
@@ -275,13 +275,13 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 		// Create a descriptor heap for the constant buffers.
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-			heapDesc.NumDescriptors = DX::c_frameCount + 1;
+			heapDesc.NumDescriptors = 3;
 			heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 			// This flag indicates that this descriptor heap can be bound to the pipeline and that descriptors contained in it can be referenced by a root table.
 			heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-			DX::ThrowIfFailed(d3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_cbv_srv_Heap)));
+			DX::ThrowIfFailed(d3dDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&m_cbvSrvUavHeap)));
 
-            NAME_D3D12_OBJECT(m_cbv_srv_Heap);
+            NAME_D3D12_OBJECT(m_cbvSrvUavHeap); 
 		}
 		
 		CD3DX12_RESOURCE_DESC constantBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(DX::c_frameCount * c_alignedConstantBufferSize);
@@ -297,24 +297,18 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 
 		// Create constant buffer views to access the upload buffer.
 		D3D12_GPU_VIRTUAL_ADDRESS cbvGpuAddress = m_constantBuffer->GetGPUVirtualAddress();
-		CD3DX12_CPU_DESCRIPTOR_HANDLE cbvCpuHandle(m_cbv_srv_Heap->GetCPUDescriptorHandleForHeapStart());
-		m_cbvDescriptorSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), 0, m_cbvSrvUavDescriptorSize);
+		m_cbvSrvUavDescriptorSize = d3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-		for (int n = 0; n < DX::c_frameCount; n++)
-		{
-			D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
-			desc.BufferLocation = cbvGpuAddress;
-			desc.SizeInBytes = c_alignedConstantBufferSize;
-			d3dDevice->CreateConstantBufferView(&desc, cbvCpuHandle);
+		D3D12_CONSTANT_BUFFER_VIEW_DESC desc;
+		desc.BufferLocation = cbvGpuAddress;
+		desc.SizeInBytes = c_alignedConstantBufferSize;
+		d3dDevice->CreateConstantBufferView(&desc, cpuHandle);
 
-			cbvGpuAddress += desc.SizeInBytes;
-			cbvCpuHandle.Offset(m_cbvDescriptorSize);
-		}
-
-		// Map the constant buffers.
+		// Map the constant buffer.
 		CD3DX12_RANGE readRange(0, 0);		// We do not intend to read from this resource on the CPU.
 		DX::ThrowIfFailed(m_constantBuffer->Map(0, &readRange, reinterpret_cast<void**>(&m_mappedConstantBuffer)));
-		ZeroMemory(m_mappedConstantBuffer, DX::c_frameCount * c_alignedConstantBufferSize);
+		ZeroMemory(m_mappedConstantBuffer, c_alignedConstantBufferSize);
 		// We don't unmap this until the app closes. Keeping things mapped for the lifetime of the resource is okay.
 
 		// Load image resource
@@ -371,8 +365,26 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 				nullptr,
 				IID_PPV_ARGS(&m_feedbackTexture)));
 
-			d3dDevice->CreateSamplerFeedbackUnorderedAccessView(m_texture, m_feedbackTexture, m_feedbackDescriptor_cpuVisible_cpu);
-			//m_spDevice->CreateSamplerFeedbackUnorderedAccessView(m_pairedTexture, m_feedbackTexture, m_feedbackDescriptor_shaderVisible_cpu);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), 2, m_cbvSrvUavDescriptorSize);
+
+			d3dDevice->CreateSamplerFeedbackUnorderedAccessView(m_texture.Get(), m_feedbackTexture.Get(), cpuHandle);
+
+			CD3DX12_HEAP_PROPERTIES readbackHeapProperties(D3D12_HEAP_TYPE_READBACK);
+
+			UINT requiredWidth = static_cast<UINT>(feedbackTextureDesc.Width) / feedbackTextureDesc.SamplerFeedbackMipRegion.Width;
+			UINT requiredHeight = feedbackTextureDesc.Height / feedbackTextureDesc.SamplerFeedbackMipRegion.Height;
+
+			UINT requiredBufferSize = requiredWidth * requiredHeight;
+			CD3DX12_RESOURCE_DESC transcodeBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(requiredBufferSize);
+
+			/*ComPtr<ID3D12Resource> resource;
+			DX::ThrowIfFailed(d3dDevice->CreateCommittedResource(
+				&readbackHeapProperties,
+				D3D12_HEAP_FLAG_NONE,
+				&transcodeBufferDesc,
+				D3D12_RESOURCE_STATE_RESOLVE_DEST,
+				nullptr,
+				IID_PPV_ARGS(&m_decodeBuffer)));*/
 		}
 	};
 
@@ -434,7 +446,7 @@ void Sample3DSceneRenderer::Update(DX::StepTimer const& timer)
 		}
 
 		// Update the constant buffer resource.
-		UINT8* destination = m_mappedConstantBuffer + (m_deviceResources->GetCurrentFrameIndex() * c_alignedConstantBufferSize);
+		UINT8* destination = m_mappedConstantBuffer;
 		memcpy(destination, &m_constantBufferData, sizeof(m_constantBufferData));
 	}
 }
@@ -463,11 +475,11 @@ bool Sample3DSceneRenderer::Render()
 	{
 		// Set the graphics root signature and descriptor heaps to be used by this frame.
 		m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-		ID3D12DescriptorHeap* ppHeaps[] = { m_cbv_srv_Heap.Get() };
+		ID3D12DescriptorHeap* ppHeaps[] = { m_cbvSrvUavHeap.Get() };
 		m_commandList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
 		// Bind the current frame's constant buffer to the pipeline.
-		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(m_cbv_srv_Heap->GetGPUDescriptorHandleForHeapStart());
+		CD3DX12_GPU_DESCRIPTOR_HANDLE gpuHandle(m_cbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart());
 		m_commandList->SetGraphicsRootDescriptorTable(0, gpuHandle);
 
 		// Set the viewport and scissor rectangle.
@@ -499,6 +511,9 @@ bool Sample3DSceneRenderer::Render()
 		CD3DX12_RESOURCE_BARRIER presentResourceBarrier =
 			CD3DX12_RESOURCE_BARRIER::Transition(m_deviceResources->GetRenderTarget(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		m_commandList->ResourceBarrier(1, &presentResourceBarrier);
+
+		//m_commandList->ResolveSubresourceRegion(
+		//	m_decodeBuffer.Get(), 0, 0, 0, m_feedbackTexture.Get(), 0, nullptr, DXGI_FORMAT_R8_UINT, D3D12_RESOLVE_MODE_DECODE_SAMPLER_FEEDBACK);
 	}
 
 	DX::ThrowIfFailed(m_commandList->Close());
@@ -575,8 +590,7 @@ void Sample3DSceneRenderer::LoadTextureFromPngFile(std::vector<std::wstring> con
 		nullptr,
 		IID_PPV_ARGS(&m_texture)));
 
-	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_cbv_srv_Heap->GetCPUDescriptorHandleForHeapStart());
-	cpuHandle.Offset(DX::c_frameCount, m_cbvDescriptorSize);
+	CD3DX12_CPU_DESCRIPTOR_HANDLE cpuHandle(m_cbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart(), 1, m_cbvSrvUavDescriptorSize);
 	
 	// Describe and create a SRV for the texture.
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
