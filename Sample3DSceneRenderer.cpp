@@ -3,8 +3,8 @@
 
 #include "Common\DirectXHelper.h"
 
-#include "SampleVertexShader.h"
-#include "SamplePixelShader.h"
+#include "SampleVertexShader.hlsl.h"
+#include "SamplePixelShader.hlsl.h"
 
 using namespace SpinningCube;
 
@@ -55,11 +55,12 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 	
 	// Create a root signature with a single constant buffer slot.
 	{
-		CD3DX12_DESCRIPTOR_RANGE ranges[2];
+		CD3DX12_DESCRIPTOR_RANGE ranges[3];
 		CD3DX12_ROOT_PARAMETER parameter;
 
 		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0u, 0);
 		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, 1);
+		ranges[2].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, 2);
 
 		parameter.InitAsDescriptorTable(_countof(ranges), ranges, D3D12_SHADER_VISIBILITY_ALL);
 
@@ -370,21 +371,48 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 			d3dDevice->CreateSamplerFeedbackUnorderedAccessView(m_texture.Get(), m_feedbackTexture.Get(), cpuHandle);
 
 			CD3DX12_HEAP_PROPERTIES readbackHeapProperties(D3D12_HEAP_TYPE_READBACK);
-
+			
 			UINT requiredWidth = static_cast<UINT>(feedbackTextureDesc.Width) / feedbackTextureDesc.SamplerFeedbackMipRegion.Width;
 			UINT requiredHeight = feedbackTextureDesc.Height / feedbackTextureDesc.SamplerFeedbackMipRegion.Height;
 
-			UINT requiredBufferSize = requiredWidth * requiredHeight;
-			CD3DX12_RESOURCE_DESC transcodeBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(requiredBufferSize);
+			CD3DX12_RESOURCE_DESC r8TextureDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+				DXGI_FORMAT_R8_UINT,
+				requiredWidth,
+				requiredHeight,
+				1,
+				1 /* mip count */);
 
-			/*ComPtr<ID3D12Resource> resource;
+			DX::ThrowIfFailed(d3dDevice->CreateCommittedResource(
+				&defaultHeapProperties,
+				D3D12_HEAP_FLAG_NONE,
+				&r8TextureDesc,
+				D3D12_RESOURCE_STATE_RESOLVE_DEST,
+				nullptr,
+				IID_PPV_ARGS(&m_decodeTexture)));
+
+			m_decodeTextureLayouts.resize(r8TextureDesc.DepthOrArraySize);
+			UINT64 r8TextureTotalBytes{};
+			d3dDevice->GetCopyableFootprints(
+				&r8TextureDesc,
+				0,
+				r8TextureDesc.DepthOrArraySize,
+				0,
+				m_decodeTextureLayouts.data(),
+				nullptr,
+				nullptr,
+				&r8TextureTotalBytes);
+
+			CD3DX12_RESOURCE_DESC readbackResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(r8TextureTotalBytes);
+			
 			DX::ThrowIfFailed(d3dDevice->CreateCommittedResource(
 				&readbackHeapProperties,
 				D3D12_HEAP_FLAG_NONE,
-				&transcodeBufferDesc,
-				D3D12_RESOURCE_STATE_RESOLVE_DEST,
+				&readbackResourceDesc,
+				D3D12_RESOURCE_STATE_COPY_DEST,
 				nullptr,
-				IID_PPV_ARGS(&m_decodeBuffer)));*/
+				IID_PPV_ARGS(&m_decodeBuffer)));
+
+			DX::ThrowIfFailed(m_decodeBuffer->Map(0, nullptr, reinterpret_cast<void**>(&m_decodeBufferMapped)));
 		}
 	};
 
@@ -512,8 +540,37 @@ bool Sample3DSceneRenderer::Render()
 			CD3DX12_RESOURCE_BARRIER::Transition(m_deviceResources->GetRenderTarget(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		m_commandList->ResourceBarrier(1, &presentResourceBarrier);
 
-		//m_commandList->ResolveSubresourceRegion(
-		//	m_decodeBuffer.Get(), 0, 0, 0, m_feedbackTexture.Get(), 0, nullptr, DXGI_FORMAT_R8_UINT, D3D12_RESOLVE_MODE_DECODE_SAMPLER_FEEDBACK);
+		CD3DX12_RESOURCE_BARRIER feedbackTransition0 =
+			CD3DX12_RESOURCE_BARRIER::Transition(m_feedbackTexture.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+		m_commandList->ResourceBarrier(1, &feedbackTransition0);
+
+		m_commandList->ResolveSubresourceRegion(
+			m_decodeTexture.Get(), 0, 0, 0, m_feedbackTexture.Get(), 0, nullptr, DXGI_FORMAT_R8_UINT, D3D12_RESOLVE_MODE_DECODE_SAMPLER_FEEDBACK);
+
+		CD3DX12_RESOURCE_BARRIER feedbackTransition1 =
+			CD3DX12_RESOURCE_BARRIER::Transition(m_feedbackTexture.Get(), D3D12_RESOURCE_STATE_RESOLVE_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		m_commandList->ResourceBarrier(1, &feedbackTransition1);
+
+		CD3DX12_RESOURCE_BARRIER decodeTransition0 =
+			CD3DX12_RESOURCE_BARRIER::Transition(m_decodeTexture.Get(), D3D12_RESOURCE_STATE_RESOLVE_DEST, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		m_commandList->ResourceBarrier(1, &decodeTransition0);
+
+		// Get data from decodeTexture
+		D3D12_TEXTURE_COPY_LOCATION dst{};
+		dst.pResource = m_decodeBuffer.Get();
+		dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		dst.PlacedFootprint.Footprint = m_decodeTextureLayouts[0].Footprint;
+
+		D3D12_TEXTURE_COPY_LOCATION src{};
+		src.pResource = m_decodeTexture.Get();
+		src.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		src.SubresourceIndex = 0;
+
+		m_commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+		CD3DX12_RESOURCE_BARRIER decodeTransition1 =
+			CD3DX12_RESOURCE_BARRIER::Transition(m_decodeTexture.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+		m_commandList->ResourceBarrier(1, &decodeTransition1);
 	}
 
 	DX::ThrowIfFailed(m_commandList->Close());

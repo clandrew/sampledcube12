@@ -57,9 +57,13 @@ namespace SpinningCube
 	    std::vector<ComPtr<ID3D12Resource>> m_uploads;
 		ComPtr<ID3D12Resource>				m_feedbackTexture;
 		ComPtr<ID3D12Resource>				m_decodeBuffer;
+		ComPtr<ID3D12Resource>				m_decodeTexture;
 		UINT								m_indexCount;
 		ComPtr<IWICImagingFactory>          m_wicImagingFactory;
 		bool								m_supportsSamplerFeedback;
+		byte*								m_decodeBufferMapped;
+		
+		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> m_decodeTextureLayouts;
 
 		// Variables used with the rendering loop.
 		bool	m_loadingComplete;
