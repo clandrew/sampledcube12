@@ -371,7 +371,6 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 				nullptr,
 				IID_PPV_ARGS(&m_feedbackTexture)));
 
-			d3dDevice->CreateSamplerFeedbackUnorderedAccessView(m_texture, m_feedbackTexture, m_feedbackDescriptor_cpuVisible_cpu);
 			//m_spDevice->CreateSamplerFeedbackUnorderedAccessView(m_pairedTexture, m_feedbackTexture, m_feedbackDescriptor_shaderVisible_cpu);
 		}
 	};
