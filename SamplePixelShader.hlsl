@@ -14,6 +14,7 @@ struct PixelShaderInput
 float4 main(PixelShaderInput input) : SV_TARGET
 {
 	g_feedbackMap.WriteSamplerFeedback(g_texture, g_sampler, input.uv);
+	//g_feedbackMap.WriteSamplerFeedbackLevel(g_texture, g_sampler, input.uv, 0);
 
 	return g_texture.Sample(g_sampler, input.uv);
 }

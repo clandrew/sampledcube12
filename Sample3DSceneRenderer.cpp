@@ -360,7 +360,7 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 				D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 				D3D12_TEXTURE_LAYOUT_UNKNOWN,
 				65536,
-				4, 4, 1);
+				16, 16, 1);
 
 			DX::ThrowIfFailed(d3dDevice->CreateCommittedResource2(
 				&defaultHeapProperties,
@@ -478,9 +478,9 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 			m_perBackBuffer2DResources.push_back(r);
 		}
 
-
 		DX::ThrowIfFailed(m_d2dDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &m_d2dBlackBrush));
 		DX::ThrowIfFailed(m_d2dDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Magenta), &m_d2dMagentaBrush));
+		DX::ThrowIfFailed(m_d2dDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), &m_d2dWhiteBrush));
 
 	};
 
@@ -652,11 +652,56 @@ bool Sample3DSceneRenderer::Render()
 		UINT frameIndex = m_deviceResources->GetCurrentFrameIndex();
 		auto const& backbuffer2D = m_perBackBuffer2DResources[frameIndex];
 
+		float gridScreenSize = 400;
+
 		ID3D11Resource* wrappedResources[] = { backbuffer2D.Backbuffer11.Get() };
 		m_device11on12->AcquireWrappedResources(wrappedResources, ARRAYSIZE(wrappedResources));
 		m_d2dDeviceContext->SetTarget(backbuffer2D.TargetBitmap.Get());
 		m_d2dDeviceContext->BeginDraw();
-		//m_d2dDeviceContext->DrawRectangle(D2D1::RectF(0, 0, 200, 200), m_d2dMagentaBrush.Get());
+		m_d2dDeviceContext->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+		m_d2dDeviceContext->FillRectangle(D2D1::RectF(0, 0, gridScreenSize, gridScreenSize), m_d2dWhiteBrush.Get());
+
+		D3D12_RESOURCE_DESC decodeTextureDesc = m_decodeTexture->GetDesc();
+		float gridWidth = decodeTextureDesc.Width;
+		float gridHeight = decodeTextureDesc.Height;
+
+		float gridScreenCellWidth = gridScreenSize / gridWidth;
+		float gridScreenCellHeight = gridScreenSize / gridHeight;
+
+		float screenY = 0;
+		for (int y = 0; y < gridHeight; y++)
+		{
+			byte* mappedRowStart = m_decodeBufferMapped + (m_decodeTextureLayouts[0].Footprint.RowPitch * y);
+			
+			float screenX = 0;
+			for (int x = 0; x < gridWidth; ++x)
+			{
+				D2D1_RECT_F rect = D2D1::RectF(screenX, screenY, screenX + gridScreenCellWidth, screenY + gridScreenCellHeight);
+				
+				m_decodeTextureLayouts[0].Footprint.RowPitch;
+				
+				byte mipLevel = mappedRowStart[x];
+				D2D1::ColorF::Enum fillColorKey;
+				switch (mipLevel)
+				{
+					case 0x00:fillColorKey = D2D1::ColorF::Maroon; break;
+					case 0x01:fillColorKey = D2D1::ColorF::Orange; break;
+					case 0x02:fillColorKey = D2D1::ColorF::Green; break;
+					case 0x03:fillColorKey = D2D1::ColorF::Purple; break;
+					case 0x04:fillColorKey = D2D1::ColorF::Gray; break;
+					case 0x05:fillColorKey = D2D1::ColorF::LightCyan; break;
+					case 0xFF: fillColorKey = D2D1::ColorF::Black; break;
+					default: fillColorKey = D2D1::ColorF::Magenta; break;
+				}
+				m_d2dMagentaBrush->SetColor(D2D1::ColorF(fillColorKey));
+				m_d2dDeviceContext->FillRectangle(rect, m_d2dMagentaBrush.Get());
+
+				m_d2dDeviceContext->DrawRectangle(rect, m_d2dBlackBrush.Get());
+				screenX += gridScreenCellWidth;
+			}
+			screenY += gridScreenCellHeight;
+		}
+
 		DX::ThrowIfFailed(m_d2dDeviceContext->EndDraw());
 
 		m_device11on12->ReleaseWrappedResources(wrappedResources, ARRAYSIZE(wrappedResources));

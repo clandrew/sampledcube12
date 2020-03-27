@@ -55,14 +55,15 @@ namespace SpinningCube
 		D3D12_INDEX_BUFFER_VIEW				m_indexBufferView;
 		ComPtr<ID3D12Resource>				m_texture;
 	    std::vector<ComPtr<ID3D12Resource>> m_uploads;
-		ComPtr<ID3D12Resource>				m_feedbackTexture;
-		ComPtr<ID3D12Resource>				m_decodeBuffer;
-		ComPtr<ID3D12Resource>				m_decodeTexture;
 		UINT								m_indexCount;
 		ComPtr<IWICImagingFactory>          m_wicImagingFactory;
+
+		// For sampler feedback
 		bool								m_supportsSamplerFeedback;
 		byte*								m_decodeBufferMapped;
-		
+		ComPtr<ID3D12Resource>				m_feedbackTexture;
+		ComPtr<ID3D12Resource>				m_decodeBuffer;
+		ComPtr<ID3D12Resource>				m_decodeTexture;		
 		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> m_decodeTextureLayouts;
 
 		// 2D stuff
@@ -72,16 +73,15 @@ namespace SpinningCube
 		ComPtr<ID2D1RenderTarget>			m_d2dRenderTarget;
 		ComPtr<ID3D11On12Device>			m_device11on12;
 		ComPtr<ID2D1Device>					m_d2dDevice;
-		ComPtr<ID2D1DeviceContext>			m_d2dDeviceContext;
-		
+		ComPtr<ID2D1DeviceContext>			m_d2dDeviceContext;		
 		struct PerBackBuffer2DResource
 		{
 			ComPtr<ID3D11Texture2D>		    Backbuffer11;
 			ComPtr<ID2D1Bitmap1>			TargetBitmap;
 		};
 		std::vector<PerBackBuffer2DResource>	m_perBackBuffer2DResources;
-
 		ComPtr<ID2D1SolidColorBrush>		m_d2dBlackBrush;
+		ComPtr<ID2D1SolidColorBrush>		m_d2dWhiteBrush; // For debugging
 		ComPtr<ID2D1SolidColorBrush>		m_d2dMagentaBrush; // For debugging
 
 		// Variables used with the rendering loop.
