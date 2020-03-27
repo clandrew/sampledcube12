@@ -360,7 +360,7 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 				D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 				D3D12_TEXTURE_LAYOUT_UNKNOWN,
 				65536,
-				16, 16, 1);
+				32, 32, 1);
 
 			DX::ThrowIfFailed(d3dDevice->CreateCommittedResource2(
 				&defaultHeapProperties,
@@ -676,7 +676,7 @@ bool Sample3DSceneRenderer::Render()
 			float screenX = 0;
 			for (int x = 0; x < gridWidth; ++x)
 			{
-				D2D1_RECT_F rect = D2D1::RectF(screenX, screenY, screenX + gridScreenCellWidth, screenY + gridScreenCellHeight);
+				D2D1_RECT_F rect = D2D1::RectF(screenX, screenY, screenX + gridScreenCellWidth - 1, screenY + gridScreenCellHeight - 1);
 				
 				m_decodeTextureLayouts[0].Footprint.RowPitch;
 				
@@ -696,7 +696,6 @@ bool Sample3DSceneRenderer::Render()
 				m_d2dMagentaBrush->SetColor(D2D1::ColorF(fillColorKey));
 				m_d2dDeviceContext->FillRectangle(rect, m_d2dMagentaBrush.Get());
 
-				m_d2dDeviceContext->DrawRectangle(rect, m_d2dBlackBrush.Get());
 				screenX += gridScreenCellWidth;
 			}
 			screenY += gridScreenCellHeight;
