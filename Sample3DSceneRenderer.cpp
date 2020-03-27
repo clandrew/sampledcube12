@@ -276,7 +276,12 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 		// Create a descriptor heap for the constant buffers.
 		{
 			D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+			
 			heapDesc.NumDescriptors = 3;
+			// 0 - Constant buffer
+			// 1 - SRV
+			// 2 - Sampler feedback UAV
+
 			heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 			// This flag indicates that this descriptor heap can be bound to the pipeline and that descriptors contained in it can be referenced by a root table.
 			heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
@@ -414,6 +419,69 @@ void Sample3DSceneRenderer::CreateDeviceDependentResources()
 
 			DX::ThrowIfFailed(m_decodeBuffer->Map(0, nullptr, reinterpret_cast<void**>(&m_decodeBufferMapped)));
 		}
+
+		D2D1_FACTORY_OPTIONS factoryOptions{};
+#if defined(_DEBUG)
+		factoryOptions.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
+#endif
+		DX::ThrowIfFailed(D2D1CreateFactory<ID2D1Factory1>(D2D1_FACTORY_TYPE_SINGLE_THREADED, factoryOptions, &m_d2dFactory));
+			   
+		uint32_t d3d11DeviceFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS;
+#if defined(_DEBUG)
+		d3d11DeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
+		IUnknown* commandQueues[] = { m_deviceResources->GetCommandQueue() };
+		DX::ThrowIfFailed(D3D11On12CreateDevice(
+			m_deviceResources->GetD3DDevice(),
+			d3d11DeviceFlags,
+			nullptr,
+			0,
+			commandQueues,
+			1,
+			0,
+			&m_device11,
+			&m_deviceContext11,
+			nullptr));
+
+		DX::ThrowIfFailed(m_device11.As(&m_device11on12));
+
+		ComPtr<IDXGIDevice> dxgiDevice;
+		DX::ThrowIfFailed(m_device11.As(&dxgiDevice));
+
+		DX::ThrowIfFailed(m_d2dFactory->CreateDevice(dxgiDevice.Get(), &m_d2dDevice));
+		D2D1_DEVICE_CONTEXT_OPTIONS deviceOptions = D2D1_DEVICE_CONTEXT_OPTIONS_NONE;
+		DX::ThrowIfFailed(m_d2dDevice->CreateDeviceContext(deviceOptions, &m_d2dDeviceContext));
+
+		IDXGISwapChain* swapChain = m_deviceResources->GetSwapChain();
+
+		DXGI_SWAP_CHAIN_DESC swapChainDesc;
+		DX::ThrowIfFailed(swapChain->GetDesc(&swapChainDesc));
+
+		for (int i = 0; i < swapChainDesc.BufferCount; ++i)
+		{
+			PerBackBuffer2DResource r;
+
+			ComPtr<ID3D12Resource> backbuffer;
+			DX::ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&backbuffer)));
+
+			D3D11_RESOURCE_FLAGS d3d11Flags = { D3D11_BIND_RENDER_TARGET };
+			DX::ThrowIfFailed(m_device11on12->CreateWrappedResource(backbuffer.Get(), &d3d11Flags, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_PRESENT, IID_PPV_ARGS(&r.Backbuffer11)));
+
+			ComPtr<IDXGISurface> backBufferSurface;
+			DX::ThrowIfFailed(r.Backbuffer11.As(&backBufferSurface));
+
+			D2D1_BITMAP_PROPERTIES1 bitmapProperties = D2D1::BitmapProperties1(
+				D2D1_BITMAP_OPTIONS_CANNOT_DRAW | D2D1_BITMAP_OPTIONS_TARGET,
+				D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+			DX::ThrowIfFailed(m_d2dDeviceContext->CreateBitmapFromDxgiSurface(backBufferSurface.Get(), bitmapProperties, &r.TargetBitmap));
+
+			m_perBackBuffer2DResources.push_back(r);
+		}
+
+
+		DX::ThrowIfFailed(m_d2dDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &m_d2dBlackBrush));
+		DX::ThrowIfFailed(m_d2dDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Magenta), &m_d2dMagentaBrush));
+
 	};
 
 	m_loadingComplete = true;
@@ -540,6 +608,7 @@ bool Sample3DSceneRenderer::Render()
 			CD3DX12_RESOURCE_BARRIER::Transition(m_deviceResources->GetRenderTarget(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		m_commandList->ResourceBarrier(1, &presentResourceBarrier);
 
+
 		CD3DX12_RESOURCE_BARRIER feedbackTransition0 =
 			CD3DX12_RESOURCE_BARRIER::Transition(m_feedbackTexture.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
 		m_commandList->ResourceBarrier(1, &feedbackTransition0);
@@ -577,7 +646,26 @@ bool Sample3DSceneRenderer::Render()
 
 	// Execute the command list.
 	ID3D12CommandList* ppCommandLists[] = { m_commandList.Get() };
-	m_deviceResources->GetCommandQueue()->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);
+	m_deviceResources->GetCommandQueue()->ExecuteCommandLists(_countof(ppCommandLists), ppCommandLists);	
+	   
+	{
+		UINT frameIndex = m_deviceResources->GetCurrentFrameIndex();
+		auto const& backbuffer2D = m_perBackBuffer2DResources[frameIndex];
+
+		ID3D11Resource* wrappedResources[] = { backbuffer2D.Backbuffer11.Get() };
+		m_device11on12->AcquireWrappedResources(wrappedResources, ARRAYSIZE(wrappedResources));
+		m_d2dDeviceContext->SetTarget(backbuffer2D.TargetBitmap.Get());
+		m_d2dDeviceContext->BeginDraw();
+		//m_d2dDeviceContext->DrawRectangle(D2D1::RectF(0, 0, 200, 200), m_d2dMagentaBrush.Get());
+		DX::ThrowIfFailed(m_d2dDeviceContext->EndDraw());
+
+		m_device11on12->ReleaseWrappedResources(wrappedResources, ARRAYSIZE(wrappedResources));
+
+	}
+
+	m_deviceContext11->Flush(); // Submits the 11on12 layering's 12 command lists
+
+	///////////
 
 	return true;
 }

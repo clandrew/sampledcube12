@@ -65,6 +65,25 @@ namespace SpinningCube
 		
 		std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> m_decodeTextureLayouts;
 
+		// 2D stuff
+		ComPtr<ID2D1Factory1>				m_d2dFactory;
+		ComPtr<ID3D11Device>				m_device11;
+		ComPtr<ID3D11DeviceContext>			m_deviceContext11;
+		ComPtr<ID2D1RenderTarget>			m_d2dRenderTarget;
+		ComPtr<ID3D11On12Device>			m_device11on12;
+		ComPtr<ID2D1Device>					m_d2dDevice;
+		ComPtr<ID2D1DeviceContext>			m_d2dDeviceContext;
+		
+		struct PerBackBuffer2DResource
+		{
+			ComPtr<ID3D11Texture2D>		    Backbuffer11;
+			ComPtr<ID2D1Bitmap1>			TargetBitmap;
+		};
+		std::vector<PerBackBuffer2DResource>	m_perBackBuffer2DResources;
+
+		ComPtr<ID2D1SolidColorBrush>		m_d2dBlackBrush;
+		ComPtr<ID2D1SolidColorBrush>		m_d2dMagentaBrush; // For debugging
+
 		// Variables used with the rendering loop.
 		bool	m_loadingComplete;
 		float	m_radiansPerSecond;
