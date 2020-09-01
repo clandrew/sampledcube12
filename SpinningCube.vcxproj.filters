@@ -16,8 +16,8 @@
     <Filter Include="Common">
       <UniqueIdentifier>{81c420af-e0eb-4974-b98a-b158e0e6512d}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Content">
-      <UniqueIdentifier>{19a4f0df-91be-4e67-9469-2f55d526b2e0}</UniqueIdentifier>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{b2869a27-eb6e-4bc5-93d6-9a8f9f6a0907}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -107,7 +107,11 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="SamplePixelShader.hlsl" />
-    <FxCompile Include="SampleVertexShader.hlsl" />
+    <FxCompile Include="SampleVertexShader.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="SamplePixelShader.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
