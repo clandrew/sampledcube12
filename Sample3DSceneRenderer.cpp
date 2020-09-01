@@ -19,7 +19,7 @@ Sample3DSceneRenderer::Sample3DSceneRenderer(const std::shared_ptr<DX::DeviceRes
 	m_tracking(false),
 	m_mappedConstantBuffer(nullptr),
 	m_deviceResources(deviceResources),
-	m_shouldRotate(false),
+	m_shouldRotate(true),
 	m_supportsSamplerFeedback(false)
 {
 	ZeroMemory(&m_constantBufferData, sizeof(m_constantBufferData));
