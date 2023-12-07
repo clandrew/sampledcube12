@@ -565,9 +565,11 @@ void Sample3DSceneRenderer::LoadTextureFromPngFile(std::vector<std::wstring> con
 	resourceDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
+
+	auto defaultHeap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
 	
 	DX::ThrowIfFailed(m_deviceResources->GetD3DDevice()->CreateCommittedResource(
-		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+		&defaultHeap,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
 		D3D12_RESOURCE_STATE_COPY_DEST,
@@ -589,11 +591,14 @@ void Sample3DSceneRenderer::LoadTextureFromPngFile(std::vector<std::wstring> con
 	{
 		const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_texture.Get(), currentMipLevel, 1);
 
+		auto uploadHeap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+		auto uploadDesc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
 		ComPtr<ID3D12Resource> upload;
 		DX::ThrowIfFailed(m_deviceResources->GetD3DDevice()->CreateCommittedResource(
-			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			&uploadHeap,
 			D3D12_HEAP_FLAG_NONE,
-			&CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
+			&uploadDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
 			IID_PPV_ARGS(&upload)));
