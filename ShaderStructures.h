@@ -11,10 +11,9 @@ namespace SpinningCube
 	};
 
 	// Used to send per-vertex data to the vertex shader.
-	struct VertexPositionColorTex
+	struct VertexPositionTex
 	{
 		DirectX::XMFLOAT3 pos;
-		DirectX::XMFLOAT3 color;
 		DirectX::XMFLOAT2 uv;
 	};
 }

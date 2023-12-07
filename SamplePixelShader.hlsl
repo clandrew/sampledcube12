@@ -11,5 +11,5 @@ struct PixelShaderInput
 // A pass-through function for the (interpolated) color data.
 float4 main(PixelShaderInput input) : SV_TARGET
 {
-	return g_texture.SampleLevel(g_sampler, input.uv, 0);
+	return g_texture.Sample(g_sampler, input.uv);
 }
